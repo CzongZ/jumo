@@ -1,0 +1,94 @@
+{
+  "PUBLIC_KEY_B64": "MCowBQYDK2VwAyEAd9WSJugIwPlZ6BNSQRGv/KHIROmtfnZlVN0cXqgQEgE=",
+  "pairingCode": "BM1.SlVNTy0wMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAwMDE.EAC74E62CEA869F5",
+  "vectors": [
+    {
+      "key": "TEST-PAIRING-001",
+      "machineCode": "JUMO-00000000-0000-4000-8000-000000000001",
+      "installationID": "11111111-1111-4111-8111-111111111111",
+      "bundleID": "com.example.first",
+      "canonical": "v2|JUMO|TEST-PAIRING-001|JUMO-00000000-0000-4000-8000-000000000001|11111111-1111-4111-8111-111111111111|com.example.first|2000000000|2000007200|2002592000|1|OK",
+      "response": {
+        "code": 200,
+        "data": {
+          "status": true,
+          "canUse": true,
+          "serverTime": 2000000000,
+          "graceUntil": 2000007200,
+          "signVersion": "v2",
+          "reasonCode": "OK",
+          "sig": "61uh1R7JqLHcxOqgImdRt93OdH4maiaetmhohxo17+ZplYHS7pZfeO4Q9mFlMhmgchbH91op/lTbfmZJlPvxCQ==",
+          "data": {
+            "expiresAt": 2002592000
+          }
+        }
+      }
+    },
+    {
+      "key": "TEST-PAIRING-001",
+      "machineCode": "JUMO-00000000-0000-4000-8000-000000000001",
+      "installationID": "22222222-2222-4222-8222-222222222222",
+      "bundleID": "com.example.second",
+      "canonical": "v2|JUMO|TEST-PAIRING-001|JUMO-00000000-0000-4000-8000-000000000001|22222222-2222-4222-8222-222222222222|com.example.second|2000000000|2000007200|2002592000|1|OK",
+      "response": {
+        "code": 200,
+        "data": {
+          "status": true,
+          "canUse": true,
+          "serverTime": 2000000000,
+          "graceUntil": 2000007200,
+          "signVersion": "v2",
+          "reasonCode": "OK",
+          "sig": "HdHJUG4rb6r+c0Jdp6rDu+XlbsNJh/cgsUz5ri/VThA42F2+SKpi0xDBwZk/Cot+AIH/KyPWDywZSOilrjFoCg==",
+          "data": {
+            "expiresAt": 2002592000
+          }
+        }
+      }
+    },
+    {
+      "key": "TEST-PAIRING-001",
+      "machineCode": "JUMO-00000000-0000-4000-8000-000000000001",
+      "installationID": "33333333-3333-4333-8333-333333333333",
+      "bundleID": "com.example.third",
+      "canonical": "v2|JUMO|TEST-PAIRING-001|JUMO-00000000-0000-4000-8000-000000000001|33333333-3333-4333-8333-333333333333|com.example.third|2000000000|0|0|0|ACTIVATION_LIMIT",
+      "response": {
+        "code": 200,
+        "data": {
+          "status": false,
+          "canUse": false,
+          "serverTime": 2000000000,
+          "graceUntil": 0,
+          "signVersion": "v2",
+          "reasonCode": "ACTIVATION_LIMIT",
+          "sig": "nfCMPgnemDxS2AFxXY3jXmzm8RhVsFlXBCuFAzFsHEipORUsZbtkFut94Xp4JIvSioSPvHctp6BBiaDMLfwUBw==",
+          "data": {
+            "expiresAt": 0
+          }
+        }
+      }
+    },
+    {
+      "key": "TEST-PAIRING-001",
+      "machineCode": "JUMO-00000000-0000-4000-8000-000000000001",
+      "installationID": "44444444-4444-4444-8444-444444444444",
+      "bundleID": "com.example.revoked",
+      "canonical": "v2|JUMO|TEST-PAIRING-001|JUMO-00000000-0000-4000-8000-000000000001|44444444-4444-4444-8444-444444444444|com.example.revoked|2000000000|0|0|0|INSTALLATION_REVOKED",
+      "response": {
+        "code": 200,
+        "data": {
+          "status": false,
+          "canUse": false,
+          "serverTime": 2000000000,
+          "graceUntil": 0,
+          "signVersion": "v2",
+          "reasonCode": "INSTALLATION_REVOKED",
+          "sig": "/mJnOVWTJoEgDAAiQAuPRgiVQ9f+zJrC/O4d9rkXaKD0CD4eVZDj6+vqXBf8PU1+7DuDuq3Xhk2TmxcaFhdRDw==",
+          "data": {
+            "expiresAt": 0
+          }
+        }
+      }
+    }
+  ]
+}

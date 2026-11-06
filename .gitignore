@@ -1,0 +1,7 @@
+__pycache__/
+.pytest_cache/
+analysis/vendor/
+analysis/syntax-vendor/
+analysis/update-check/
+output/
+*.private.pem

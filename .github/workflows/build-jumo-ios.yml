@@ -1,0 +1,49 @@
+name: Build JUMO iOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Show Apple toolchain
+        run: |
+          uname -m
+          xcode-select -p
+          xcodebuild -version
+          xcrun --sdk macosx --show-sdk-path
+          xcrun --sdk iphoneos --show-sdk-path
+
+      - name: Install test dependencies
+        run: python -m pip install -r client/JumoLicense/requirements-test.txt
+
+      - name: Verify trust and binary preparation
+        run: |
+          python -m pytest client/JumoLicense/Tests -q
+          python analysis/verify_jumo.py
+
+      - name: Run native tests and build signed iOS libraries
+        run: python client/JumoLicense/build.py --public-key-file client/JumoLicense/Config/license-public.b64
+
+      - name: Upload device test package
+        uses: actions/upload-artifact@v7
+        with:
+          name: JUMO-device-test
+          path: output/jumo-integration/JUMO-device-test.zip
+          if-no-files-found: error
+          retention-days: 7

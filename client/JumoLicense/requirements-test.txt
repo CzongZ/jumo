@@ -1,0 +1,4 @@
+capstone>=5
+cryptography>=43
+pytest>=8
+unicorn>=2.1.4

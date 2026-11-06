@@ -1,0 +1,70 @@
+{
+  "testOnly": true,
+  "generatedBy": "Java 17 Ed25519",
+  "PUBLIC_KEY_B64": "MCowBQYDK2VwAyEA6t4i00rNEUaObxMFpKVjp47xe0L/biV3yZ9FtYPzzvI=",
+  "vectors": [
+{
+  "key": "TEST-CARD-001",
+  "machineCode": "TK-ABCD-1234",
+  "canonical": "v1|TEST-CARD-001|TK-ABCD-1234|2000000000|2000259200|2002592000|1",
+  "response": {
+    "code": 200,
+    "msg": "卡密验证通过",
+    "data": {
+      "status": true, "canUse": true,
+      "tips": "卡密验证通过",
+      "serverTime": 2000000000, "graceUntil": 2000259200,
+      "signVersion": "v1", "sig": "CJtGkd6kSuUmrQ3nqm94WBHCSTTJGkKfiM08IKSL4LznAeRf3FzRN6AecJ3CDzZTnP1W24OirbodM3iibvLYAw==",
+      "data": {
+        "id": "1", "name": "速影授权", "key_type": "monthly",
+        "mode": "single_machine", "userType": "normal",
+        "activeTimeText": "2033-05-18 11:33:20",
+        "expiresAt": 2002592000, "expiresAtText": "2033-06-17 11:33:20"
+      }
+    }
+  }
+},
+{
+  "key": "TEST-CARD-001",
+  "machineCode": "TK-ABCD-1234",
+  "canonical": "v1|TEST-CARD-001|TK-ABCD-1234|2000000000|2000259200|0|1",
+  "response": {
+    "code": 200,
+    "msg": "卡密验证通过",
+    "data": {
+      "status": true, "canUse": true,
+      "tips": "卡密验证通过",
+      "serverTime": 2000000000, "graceUntil": 2000259200,
+      "signVersion": "v1", "sig": "Xia1KXf3P9cB5+bc4GQZL+eew4C1tkYvWl5cvVE8Va1Bm2EBiJmPuyDWHGPBjwOYMKPBj+E9TxWPJTg7NN1lCg==",
+      "data": {
+        "id": "1", "name": "速影授权", "key_type": "permanent",
+        "mode": "single_machine", "userType": "normal",
+        "activeTimeText": "2033-05-18 11:33:20",
+        "expiresAt": 0, "expiresAtText": "永久"
+      }
+    }
+  }
+},
+{
+  "key": "TEST-UNKNOWN",
+  "machineCode": "TK-ABCD-1234",
+  "canonical": "v1|TEST-UNKNOWN|TK-ABCD-1234|2000000000|0|0|0",
+  "response": {
+    "code": 200,
+    "msg": "卡密不存在",
+    "data": {
+      "status": false, "canUse": false,
+      "tips": "卡密不存在",
+      "serverTime": 2000000000, "graceUntil": 0,
+      "signVersion": "v1", "sig": "khv/3hRk0Sqz1Xn3GchI+WwrVpz80OnZHJjY4+f9rRtANmb/uQ1VDE32bYI392MHaaTRlMbIhsRd0Bb1TFcQCw==",
+      "data": {
+        "id": "", "name": "速影授权", "key_type": "",
+        "mode": "single_machine", "userType": "normal",
+        "activeTimeText": "",
+        "expiresAt": 0, "expiresAtText": ""
+      }
+    }
+  }
+}
+  ]
+}
