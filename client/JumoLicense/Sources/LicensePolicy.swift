@@ -20,25 +20,20 @@ struct JumoLease: Codable {
     let boot: String
     let renewAfter: TimeInterval
     let softwareID: String
-    let installation: JumoInstallation?
 
     init(response: Data, wall: Date, uptime: TimeInterval, boot: String,
-         renewAfter: TimeInterval = Double.random(in: JumoSessionPolicy.renewalRange),
-         installation: JumoInstallation? = nil) {
+         renewAfter: TimeInterval = Double.random(in: JumoSessionPolicy.renewalRange)) {
         self.response = response
         receivedWall = wall.timeIntervalSince1970
         receivedUptime = uptime
         self.boot = boot
         self.renewAfter = renewAfter
         softwareID = JumoProtocol.softwareID
-        self.installation = installation
     }
 
     func resolve(verifier: JumoLicenseVerifier, key: String, machine: String,
-                 wall: Date, uptime: TimeInterval, boot currentBoot: String,
-                 installation expectedInstallation: JumoInstallation? = nil) throws -> JumoLeaseStatus {
-        guard installation == expectedInstallation,
-              softwareID == JumoProtocol.softwareID, !boot.isEmpty, boot == currentBoot,
+                 wall: Date, uptime: TimeInterval, boot currentBoot: String) throws -> JumoLeaseStatus {
+        guard softwareID == JumoProtocol.softwareID, !boot.isEmpty, boot == currentBoot,
               receivedWall.isFinite, receivedUptime.isFinite, receivedUptime >= 0,
               JumoSessionPolicy.renewalRange.contains(renewAfter)
         else { throw JumoLicenseError.expired }
@@ -49,7 +44,7 @@ struct JumoLease: Codable {
         else { throw JumoLicenseError.clock }
         // Re-verify on every read, binding the cached response to THIS card and
         // device. The original receipt time must itself satisfy fresh verification.
-        let license = try verifier.verify(response, key: key, machine: machine, installation: expectedInstallation,
+        let license = try verifier.verify(response, key: key, machine: machine,
                                          receivedAt: Date(timeIntervalSince1970: receivedWall))
         let serverAge = wall.timeIntervalSince1970 - Double(license.serverTime)
         guard serverAge >= -300, serverAge < JumoSessionPolicy.maximumLease + 300

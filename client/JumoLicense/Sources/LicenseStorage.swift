@@ -5,9 +5,9 @@ import Darwin
 enum JumoKeychain {
     // Ordinary host-private Keychain; no additional host entitlements.
     // Also namespace by host bundle, even if its pre-existing default group is
-    // shared with a sibling app. Each host must still have its own instance ID.
+    // shared with a sibling app. Each host keeps its own card and stable machine code.
     static var service: String {
-        "site.czongz.JUMO.baiming.pairing.v3." + (Bundle.main.bundleIdentifier ?? "missing-bundle")
+        "site.czongz.JUMO.baiming.independent.v4." + (Bundle.main.bundleIdentifier ?? "missing-bundle")
     }
 
     struct Credentials: Codable {
@@ -106,12 +106,6 @@ enum JumoKeychain {
         try check(status)
         guard let bytes = value as? Data, let text = String(data: bytes, encoding: .utf8) else { return nil }
         return try JumoProtocol.normalizeMachine(text)
-    }
-
-    static func installation(bundleID: String) throws -> JumoInstallation {
-        let value = JumoInstallation(id: try getOrCreate("installation-id", candidate: UUID().uuidString), bundleID: bundleID)
-        try value.validate()
-        return value
     }
 
     static func bootIdentifier() throws -> String {

@@ -125,8 +125,8 @@ def prepare(output, runtime=None):
     report = dict(software_id='JUMO', endpoint='https://back.czongz.site/ai/ai_key/card_vip/detail',
                   ios_runtime_tested=False, runtime_included=bool(runtime),
                   installable_bundle=False, requires_resigning=True, brand='百鸣科技',
-                  shared_access_group=None, authorization_mode='manual-pairing',
-                  requires_backend_pairing_v2=True, files=[])
+                  shared_access_group=None, authorization_mode='per-app-card',
+                  requires_backend_pairing_v2=False, files=[])
     for name, model in inputs.items():
         modified = bytearray(model.data)
         allowed = set()

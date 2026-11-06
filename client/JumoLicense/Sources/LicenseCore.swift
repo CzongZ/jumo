@@ -2,24 +2,19 @@ import Foundation
 import CryptoKit
 
 enum JumoLicenseError: Error, LocalizedError {
-    case input, configuration, format, signature, denied, expired, clock, storage, pairing, upgrade
-    case activationLimit, installationRevoked
+    case input, configuration, format, signature, denied, expired, clock, storage
     case transport, http(Int), throttled(TimeInterval)
 
     var errorDescription: String? {
         switch self {
-        case .input: return "卡密或授权编号格式不正确"
+        case .input: return "卡密或本 App 设备码格式不正确"
         case .configuration: return "授权公钥未配置或格式不正确，请联系软件提供方"
         case .format: return "授权服务器响应格式不正确"
         case .signature: return "授权签名校验失败"
-        case .denied: return "授权未通过：卡密无效、已停用、已过期或授权编号不匹配"
+        case .denied: return "授权未通过：卡密无效、已停用、已过期或已绑定其他 App 或设备"
         case .expired: return "授权已过期"
         case .clock: return "设备时间与服务器不一致，请启用自动设置时间后重试"
         case .storage: return "无法安全保存授权信息，请解锁设备后重试"
-        case .pairing: return "配对码无效或不完整，请从已激活的 App 重新复制"
-        case .upgrade: return "服务端尚未支持配对授权协议 v2，请先更新授权服务"
-        case .activationLimit: return "此卡已达到 App 激活数量上限，请联系管理员解绑旧实例或调整上限"
-        case .installationRevoked: return "此 App 实例已被解绑，请联系管理员恢复或重新登记"
         case .transport: return "无法连接授权服务器，请检查网络后重试"
         case .http(let status): return "授权请求失败（HTTP \(status)）"
         case .throttled: return "请求过于频繁，请稍后重试"
@@ -84,7 +79,7 @@ enum JumoProtocol {
         return key
     }
 
-    static func formBody(key: String, machine: String, installation: JumoInstallation? = nil) throws -> Data {
+    static func formBody(key: String, machine: String) throws -> Data {
         let key = try normalizeKey(key)
         let machine = try normalizeMachine(machine)
         func encode(_ string: String) -> String {
@@ -97,12 +92,7 @@ enum JumoProtocol {
                 }
             }.joined()
         }
-        var body = "key=\(encode(key))&machine_code=\(encode(machine))&software_id=JUMO"
-        if let installation = installation {
-            try installation.validate()
-            body += "&client_version=2&installation_id=\(encode(installation.id))&bundle_id=\(encode(installation.bundleID))"
-        }
-        return Data(body.utf8)
+        return Data("key=\(encode(key))&machine_code=\(encode(machine))&software_id=JUMO".utf8)
     }
 }
 
@@ -118,16 +108,12 @@ struct JumoSignedLicense: Decodable {
     let graceUntil: Int64
     let signVersion: String
     let sig: String
-    let reasonCode: String?
     let data: Details
 
     struct Details: Decodable { let expiresAt: Int64 }
 
-    func canonical(key: String, machine: String, installation: JumoInstallation? = nil) -> String {
-        if let installation = installation {
-            return "v2|JUMO|\(key)|\(machine)|\(installation.id)|\(installation.bundleID)|\(serverTime)|\(graceUntil)|\(data.expiresAt)|\(status && canUse ? "1" : "0")|\(reasonCode ?? "")"
-        }
-        return "v1|\(key)|\(machine)|\(serverTime)|\(graceUntil)|\(data.expiresAt)|\(status && canUse ? "1" : "0")"
+    func canonical(key: String, machine: String) -> String {
+        "v1|\(key)|\(machine)|\(serverTime)|\(graceUntil)|\(data.expiresAt)|\(status && canUse ? "1" : "0")"
     }
 }
 
@@ -151,41 +137,25 @@ struct JumoLicenseVerifier {
     }
 
     func verify(_ bytes: Data, key rawKey: String, machine rawMachine: String,
-                installation: JumoInstallation? = nil, receivedAt: Date = Date()) throws -> JumoVerifiedLicense {
+                receivedAt: Date = Date()) throws -> JumoVerifiedLicense {
         let key = try JumoProtocol.normalizeKey(rawKey)
         let machine = try JumoProtocol.normalizeMachine(rawMachine)
-        try installation?.validate()
         guard bytes.count <= 65_536,
               let envelope = try? JSONDecoder().decode(JumoEnvelope.self, from: bytes),
               envelope.code == 200 else { throw JumoLicenseError.format }
         let license = envelope.data
-        if installation != nil && license.signVersion == "v1" { throw JumoLicenseError.upgrade }
-        let reasons: Set<String> = ["OK", "INVALID_CARD", "SOFTWARE_MISMATCH", "DISABLED", "EXPIRED",
-            "MACHINE_MISMATCH", "ACTIVATION_LIMIT", "INSTALLATION_REVOKED", "INSTALLATION_MISMATCH",
-            "CLIENT_UPGRADE_REQUIRED"]
-        if installation != nil {
-            guard let reason = license.reasonCode, reasons.contains(reason),
-                  (reason == "OK") == license.status else { throw JumoLicenseError.format }
-        }
         let times = [license.serverTime, license.graceUntil, license.data.expiresAt]
-        guard license.signVersion == (installation == nil ? "v1" : "v2"), license.status == license.canUse,
+        guard license.signVersion == "v1", license.status == license.canUse,
               times.allSatisfy({ $0 >= 0 && $0 <= JumoProtocol.maximumSafeInteger }),
               let signature = JumoProtocol.strictBase64(license.sig), signature.count == 64
         else { throw JumoLicenseError.format }
         guard publicKey.isValidSignature(signature,
-                    for: Data(license.canonical(key: key, machine: machine, installation: installation).utf8))
+                    for: Data(license.canonical(key: key, machine: machine).utf8))
         else { throw JumoLicenseError.signature }
         // No server reason text or other unsigned display fields confer authorization.
         guard abs(receivedAt.timeIntervalSince1970 - Double(license.serverTime)) <= 300
         else { throw JumoLicenseError.clock }
-        guard license.status && license.canUse else {
-            switch license.reasonCode {
-            case "ACTIVATION_LIMIT": throw JumoLicenseError.activationLimit
-            case "INSTALLATION_REVOKED": throw JumoLicenseError.installationRevoked
-            case "CLIENT_UPGRADE_REQUIRED": throw JumoLicenseError.upgrade
-            default: throw JumoLicenseError.denied
-            }
-        }
+        guard license.status && license.canUse else { throw JumoLicenseError.denied }
         let expires = license.data.expiresAt
         guard expires == 0 || expires > license.serverTime else { throw JumoLicenseError.expired }
         guard license.graceUntil >= license.serverTime,

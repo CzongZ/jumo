@@ -18,6 +18,13 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 SOURCES = HERE / 'Sources'
 OUT = ROOT / 'output' / 'jumo-integration'
+# Uploading a ZIP over an existing repository may leave obsolete pairing source
+# files behind. Build this revision's explicit source set, never stale leftovers.
+RUNTIME_SOURCES = (
+    'BaimingTheme.swift', 'JumoLicenseRuntime.swift', 'LicenseCore.swift',
+    'LicenseGate.swift', 'LicenseHTTPClient.swift', 'LicenseManager.swift',
+    'LicensePolicy.swift', 'LicenseStorage.swift',
+)
 
 
 def run(*args):
@@ -37,7 +44,7 @@ def validate_key(path):
         raise ValueError('Expected a standard Base64 Ed25519 SPKI public key') from None
     if len(der) != 44 or der[:12].hex() != '302a300506032b6570032100' or base64.b64encode(der).decode() != text:
         raise ValueError('Expected a standard Base64 Ed25519 SPKI public key')
-    for name in ('java-test-vectors.json', 'pairing-test-vectors.json'):
+    for name in ('java-test-vectors.json',):
         fixtures = json.loads((HERE / 'Tests' / name).read_text('utf-8'))
         if text == fixtures['PUBLIC_KEY_B64']:
             raise ValueError('The documentation test key cannot be used for a release build')
@@ -56,7 +63,7 @@ def main():
         parser.error('Native iOS builds require macOS + Xcode; no installable dylib has been built')
     build = OUT / 'build'
     build.mkdir(parents=True, exist_ok=True)
-    print('Baiming license build: pairing-v3 / protocol v2 / original injector / 55-65 minute renewal', flush=True)
+    print('Baiming license build: independent-v4 / protocol v1 / original injector / 55-65 minute renewal', flush=True)
     swift = find('swiftc', 'macosx')
     mac_sdk = subprocess.check_output(
         ['xcrun', '--sdk', 'macosx', '--show-sdk-path'], text=True).strip()
@@ -67,9 +74,9 @@ def main():
     # launcher, so pass the host SDK explicitly, just as for the iOS build.
     run(swift, '-sdk', mac_sdk, '-swift-version', '5', '-parse-as-library',
         SOURCES / 'LicenseCore.swift', SOURCES / 'LicenseHTTPClient.swift',
-        SOURCES / 'LicenseGate.swift', SOURCES / 'LicensePolicy.swift', SOURCES / 'LicensePairing.swift',
+        SOURCES / 'LicenseGate.swift', SOURCES / 'LicensePolicy.swift',
         HERE / 'Tests' / 'ProtocolTests.swift', '-o', test_binary)
-    run(test_binary, HERE / 'Tests' / 'java-test-vectors.json', HERE / 'Tests' / 'pairing-test-vectors.json')
+    run(test_binary, HERE / 'Tests' / 'java-test-vectors.json')
     if args.test_only:
         return
     sdk = subprocess.check_output(['xcrun', '--sdk', 'iphoneos', '--show-sdk-path'], text=True).strip()
@@ -83,7 +90,7 @@ def main():
     run(swift, '-swift-version', '5', '-target', 'arm64-apple-ios14.0', '-sdk', sdk,
         '-emit-library', '-O', '-whole-module-optimization', '-module-name', 'JumoLicense',
         '-import-objc-header', SOURCES / 'JumoBridge.h',
-        *sorted(SOURCES.glob('*.swift')), trust, bridge,
+        *(SOURCES / name for name in RUNTIME_SOURCES), trust, bridge,
         '-framework', 'Foundation', '-framework', 'UIKit', '-framework', 'Security', '-framework', 'CryptoKit',
         '-Xlinker', '-install_name', '-Xlinker', '@loader_path/JumoLicense.dylib',
         '-Xlinker', '-rpath', '-Xlinker', '/usr/lib/swift', '-o', library)
@@ -97,9 +104,9 @@ def main():
     for entry in report['files']:
         entry['signed_sha256'] = hashlib.sha256((release / entry['name']).read_bytes()).hexdigest()
     report.update(native_core_tests_passed=True, public_key_spki_sha256=fingerprint,
-                  client_revision='baiming-pairing-v3', protocol_version='v2', renewal_seconds=[3300, 3900],
+                  client_revision='baiming-independent-v4', protocol_version='v1', renewal_seconds=[3300, 3900],
                   maximum_lease_seconds=7200, requires_host_shared_keychain_entitlement=False,
-                  requires_backend_pairing_v2=True, original_injector_supported=True,
+                  requires_backend_pairing_v2=False, original_injector_supported=True,
                   requires_resigning=True, ready_for_device_test=True)
     (release / 'integration-manifest.json').write_text(json.dumps(report, indent=2) + '\n', 'utf-8')
     shutil.copyfile(HERE / 'README.zh-CN.md', release / 'README.zh-CN.md')

@@ -6,12 +6,12 @@ final class JumoHTTPClient: NSObject, URLSessionDataDelegate {
     private var completion: ((Result<Data, Error>) -> Void)?
     private var bytes = Data()
 
-    func authorize(key: String, machine: String, installation: JumoInstallation,
+    func authorize(key: String, machine: String,
                    completion: @escaping (Result<Data, Error>) -> Void) throws {
         precondition(self.completion == nil)
         var request = URLRequest(url: JumoProtocol.endpoint)
         request.httpMethod = "POST"
-        request.httpBody = try JumoProtocol.formBody(key: key, machine: machine, installation: installation)
+        request.httpBody = try JumoProtocol.formBody(key: key, machine: machine)
         request.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 5

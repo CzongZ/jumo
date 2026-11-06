@@ -181,7 +181,7 @@ struct ProtocolTests {
         try expect(first.remaining == 7200 && first.renewIn == 3300, "bounded private lease")
         let anotherApp = try shared.resolve(verifier: verifier, key: "TEST-CARD-001", machine: "TK-ABCD-1234",
             wall: when.addingTimeInterval(1200), uptime: 1300, boot: "BOOT-A")
-        try expect(anotherApp.remaining == 6000 && anotherApp.renewIn == 2100, "same installation reuses signed lease")
+        try expect(anotherApp.remaining == 6000 && anotherApp.renewIn == 2100, "same App reuses signed lease")
         let due = try shared.resolve(verifier: verifier, key: "TEST-CARD-001", machine: "TK-ABCD-1234",
             wall: when.addingTimeInterval(3600), uptime: 3700, boot: "BOOT-A")
         try expect(due.renewIn < 0 && due.remaining == 3600, "hourly renewal due without premature lock")
@@ -216,7 +216,7 @@ struct ProtocolTests {
             _ = try forged.resolve(verifier: verifier, key: "TEST-CARD-001", machine: "TK-ABCD-1234",
                 wall: when, uptime: 100, boot: "BOOT-A")
         }
-        try rejects("another software namespace cannot use the shared lease") {
+        try rejects("another software namespace cannot use the private lease") {
             var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(shared)) as! [String: Any]
             json["softwareID"] = "OTHER"
             let changed = try JSONDecoder().decode(JumoLease.self,
@@ -236,92 +236,7 @@ struct ProtocolTests {
         try expect(JumoSessionPolicy.retryDelay(failures: 10, jitter: 1) == 1125, "bounded transient backoff")
         try expect(JumoHTTPClient.retryDelay("60") == 60, "Retry-After delta")
         try expect(JumoHTTPClient.retryDelay("invalid") == 60, "Retry-After fallback")
-        try pairingTests(when: when)
         print("\(checks) native Swift protocol/policy checks passed")
     }
 
-    static func pairingTests(when: Date) throws {
-        let fixture = try JSONSerialization.jsonObject(with: Data(contentsOf:
-            URL(fileURLWithPath: CommandLine.arguments[2]))) as! [String: Any]
-        let verifier = try JumoLicenseVerifier(publicKeyB64: fixture["PUBLIC_KEY_B64"] as! String)
-        let vectors = fixture["vectors"] as! [[String: Any]]
-        let machine = vectors[0]["machineCode"] as! String
-        let code = fixture["pairingCode"] as! String
-        try expect(try JumoPairing.encode(machine: machine) == code, "pairing Python checksum vector")
-        try expect(try JumoPairing.decode("\n" + code + " ") == machine, "pairing round trip with outer whitespace")
-        for raw in ["", machine, code + "X", code.lowercased(), code.replacingOccurrences(of: "BM1", with: "BM2"),
-                    "BM1.A.A", String(repeating: "X", count: 2049)] {
-            try rejects("malformed pairing code") { _ = try JumoPairing.decode(raw) }
-        }
-        for (index, vector) in vectors.enumerated() {
-            let installation = JumoInstallation(id: vector["installationID"] as! String, bundleID: vector["bundleID"] as! String)
-            let key = vector["key"] as! String
-            let bytes = try JSONSerialization.data(withJSONObject: vector["response"]!)
-            let envelope = try JSONDecoder().decode(JumoEnvelope.self, from: bytes)
-            try expect(envelope.data.canonical(key: key, machine: machine, installation: installation)
-                == vector["canonical"] as! String, "v2 Python canonical vector \(index)")
-            if index < 2 {
-                _ = try verifier.verify(bytes, key: key, machine: machine, installation: installation, receivedAt: when)
-                checks += 1
-                let lease = JumoLease(response: bytes, wall: when, uptime: 100, boot: "B", renewAfter: 3300,
-                    installation: installation)
-                try expect(try lease.resolve(verifier: verifier, key: key, machine: machine, wall: when,
-                    uptime: 100, boot: "B", installation: installation).remaining == 7200, "v2 installation lease")
-                let other = JumoInstallation(id: "99999999-9999-4999-8999-999999999999", bundleID: installation.bundleID)
-                try rejects("v2 signature cannot transfer to another installation") {
-                    _ = try verifier.verify(bytes, key: key, machine: machine, installation: other, receivedAt: when)
-                }
-                try rejects("v2 lease cannot transfer to another installation") {
-                    _ = try lease.resolve(verifier: verifier, key: key, machine: machine, wall: when,
-                        uptime: 100, boot: "B", installation: other)
-                }
-                let otherBundle = JumoInstallation(id: installation.id, bundleID: "com.example.changed")
-                try rejects("v2 signature cannot transfer to another host bundle") {
-                    _ = try verifier.verify(bytes, key: key, machine: machine, installation: otherBundle, receivedAt: when)
-                }
-                try rejects("v2 response cannot be used by legacy verifier") {
-                    _ = try verifier.verify(bytes, key: key, machine: machine, receivedAt: when)
-                }
-                var response = vector["response"] as! [String: Any]
-                var license = response["data"] as! [String: Any]
-                license["reasonCode"] = "ACTIVATION_LIMIT"
-                license["status"] = false
-                license["canUse"] = false
-                response["data"] = license
-                try rejects("unsigned quota denial cannot invalidate a license") {
-                    _ = try verifier.verify(JSONSerialization.data(withJSONObject: response), key: key,
-                        machine: machine, installation: installation, receivedAt: when)
-                }
-            } else {
-                do {
-                    _ = try verifier.verify(bytes, key: key, machine: machine, installation: installation, receivedAt: when)
-                    throw NSError(domain: "accepted signed denial", code: 1)
-                } catch JumoLicenseError.activationLimit where index == 2 { checks += 1 }
-                  catch JumoLicenseError.installationRevoked where index == 3 { checks += 1 }
-            }
-        }
-        let first = vectors[0]
-        let installation = JumoInstallation(id: first["installationID"] as! String, bundleID: first["bundleID"] as! String)
-        let body = try JumoProtocol.formBody(key: "K", machine: "M", installation: installation)
-        try expect(String(data: body, encoding: .utf8) ==
-            "key=K&machine_code=M&software_id=JUMO&client_version=2&installation_id=11111111-1111-4111-8111-111111111111&bundle_id=com.example.first",
-            "exact v2 request fields")
-        let legacyFixture = try JSONSerialization.jsonObject(with: Data(contentsOf:
-            URL(fileURLWithPath: CommandLine.arguments[1]))) as! [String: Any]
-        let legacy = (legacyFixture["vectors"] as! [[String: Any]])[0]
-        let legacyVerifier = try JumoLicenseVerifier(publicKeyB64: legacyFixture["PUBLIC_KEY_B64"] as! String)
-        do {
-            _ = try legacyVerifier.verify(JSONSerialization.data(withJSONObject: legacy["response"]!),
-                key: legacy["key"] as! String, machine: legacy["machineCode"] as! String,
-                installation: installation, receivedAt: when)
-            throw NSError(domain: "accepted v1 downgrade", code: 1)
-        } catch JumoLicenseError.upgrade { checks += 1 }
-        for invalid in [JumoInstallation(id: "not-a-uuid", bundleID: "com.example.app"),
-                        JumoInstallation(id: installation.id.lowercased() + "x", bundleID: "com.example.app"),
-                        JumoInstallation(id: installation.id, bundleID: "app|spoof"),
-                        JumoInstallation(id: installation.id, bundleID: ""),
-                        JumoInstallation(id: installation.id, bundleID: String(repeating: "x", count: 256))] {
-            try rejects("invalid installation fields") { try invalid.validate() }
-        }
-    }
 }

@@ -5,7 +5,6 @@ final class JumoLicenseManager: NSObject {
     static let shared = JumoLicenseManager()
     private var machine = ""
     private var boot = ""
-    private var installation: JumoInstallation?
     private var credentials: JumoKeychain.Credentials?
     private var verifier: JumoLicenseVerifier?
     private var client: JumoHTTPClient?
@@ -32,8 +31,7 @@ final class JumoLicenseManager: NSObject {
         do {
             credentials = try JumoKeychain.credentials()
             machine = try JumoKeychain.machineCode()
-            guard let bundle = Bundle.main.bundleIdentifier else { throw JumoLicenseError.configuration }
-            installation = try JumoKeychain.installation(bundleID: bundle)
+            guard Bundle.main.bundleIdentifier != nil else { throw JumoLicenseError.configuration }
             boot = try JumoKeychain.bootIdentifier()
             verifier = try JumoLicenseVerifier(publicKeyB64: JumoTrust.publicKeyB64)
             setupError = nil
@@ -54,7 +52,7 @@ final class JumoLicenseManager: NSObject {
     @objc func presentManagement() {
         managementPresented = true
         start()
-        if setupError == nil { show("可随时复制配对码；其他 App 需导入配对码并输入同一张卡。") }
+        if setupError == nil { show("此 App 独立保存卡密；其他 App 请分别使用各自的卡。") }
     }
 
     private func suspend() {
@@ -79,9 +77,9 @@ final class JumoLicenseManager: NSObject {
 
     private func readLease() throws -> JumoLeaseStatus? {
         guard let verifier = verifier, let credentials = credentials,
-              let lease = credentials.lease, let installation = installation else { return nil }
+              let lease = credentials.lease else { return nil }
         return try lease.resolve(verifier: verifier, key: credentials.card, machine: credentials.machine,
-            wall: Date(), uptime: ProcessInfo.processInfo.systemUptime, boot: boot, installation: installation)
+            wall: Date(), uptime: ProcessInfo.processInfo.systemUptime, boot: boot)
     }
 
     private func openGate(_ lease: JumoLeaseStatus) throws {
@@ -101,7 +99,7 @@ final class JumoLicenseManager: NSObject {
             credentials = try JumoKeychain.credentials()
             guard let credentials = credentials else {
                 closeGate()
-                show("第一个 App 留空配对码；其他 App 请先填入已激活 App 的配对码。")
+                show("请输入用于此 App 的 JUMO 卡密，首次激活需要联网。")
                 return
             }
             machine = credentials.machine
@@ -128,7 +126,7 @@ final class JumoLicenseManager: NSObject {
                 schedule(min(wait, lease?.remaining ?? wait))
                 return
             }
-            authorize(credentials.card, proposedMachine: machine, userInitiated: false)
+            authorize(credentials.card, userInitiated: false)
         } catch {
             closeGate()
             show(error.localizedDescription)
@@ -136,12 +134,12 @@ final class JumoLicenseManager: NSObject {
         }
     }
 
-    private func authorize(_ raw: String, proposedMachine: String, userInitiated: Bool) {
+    private func authorize(_ raw: String, userInitiated: Bool) {
         guard !inFlight, UIApplication.shared.applicationState == .active else { return }
-        guard let verifier = verifier, let installation = installation, setupError == nil else { start(); return }
+        guard let verifier = verifier, setupError == nil else { start(); return }
         do {
             let card = try JumoProtocol.normalizeKey(raw)
-            let requestedMachine = try JumoProtocol.normalizeMachine(proposedMachine)
+            let requestedMachine = try JumoProtocol.normalizeMachine(machine)
             let uptime = ProcessInfo.processInfo.systemUptime
             if let backoff = try JumoKeychain.backoff(boot: boot), backoff.until > uptime {
                 show("请求冷却中，请稍后重试")
@@ -154,21 +152,20 @@ final class JumoLicenseManager: NSObject {
             updateScreen()
             if userInitiated || !JumoGate.shared.isOpen { show("正在联网验证此 App 授权…") }
             do {
-                try request.authorize(key: card, machine: requestedMachine, installation: installation) { [weak self] result in
+                try request.authorize(key: card, machine: requestedMachine) { [weak self] result in
                     guard let self = self else { return }
                     self.inFlight = false
                     self.client = nil
                     do {
                         let bytes = try result.get()
                         let wall = Date()
-                        let license = try verifier.verify(bytes, key: card, machine: requestedMachine,
-                            installation: installation, receivedAt: wall)
+                        let license = try verifier.verify(bytes, key: card, machine: requestedMachine, receivedAt: wall)
                         guard license.sessionSeconds > 0 else { throw JumoLicenseError.expired }
                         let lease = JumoLease(response: bytes, wall: wall,
-                            uptime: ProcessInfo.processInfo.systemUptime, boot: self.boot, installation: installation)
+                            uptime: ProcessInfo.processInfo.systemUptime, boot: self.boot)
                         let next = JumoKeychain.Credentials(machine: requestedMachine, card: card,
                             lease: lease, blockedMessage: nil)
-                        // Failed imports never overwrite the existing identity or card.
+                        // Replacing a card commits only after successful online verification.
                         try JumoKeychain.saveCredentials(next)
                         self.credentials = next
                         self.machine = requestedMachine
@@ -176,8 +173,7 @@ final class JumoLicenseManager: NSObject {
                         try? JumoKeychain.delete("backoff")
                         if userInitiated {
                             self.managementPresented = true
-                            self.screen?.pairing.text = nil
-                            self.show("激活成功。可复制下方配对码到其他 App，或点击「继续使用」。")
+                            self.show("此 App 激活成功，点击「继续使用」进入功能。")
                         }
                         self.evaluate()
                     } catch {
@@ -237,8 +233,7 @@ final class JumoLicenseManager: NSObject {
     private func updateScreen() {
         guard let screen = screen else { return }
         screen.loadViewIfNeeded()
-        screen.update(pairingCode: credentials.flatMap { try? JumoPairing.encode(machine: $0.machine) },
-            installation: installation, canContinue: JumoGate.shared.isOpen,
+        screen.update(machineCode: machine, canContinue: JumoGate.shared.isOpen,
             enabled: !inFlight && setupError == nil, remembered: credentials != nil)
     }
 
@@ -249,14 +244,9 @@ final class JumoLicenseManager: NSObject {
                 .first(where: { $0.activationState == .foregroundActive }) else { return }
             previousWindow = scene.windows.first(where: { $0.isKeyWindow })
             let controller = JumoLicenseScreen()
-            controller.submit = { [weak self] raw, pairing in
+            controller.submit = { [weak self] raw in
                 guard let self = self else { return }
-                do {
-                    let target = pairing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        ? self.machine : try JumoPairing.decode(pairing)
-                    self.authorize(raw.isEmpty ? (self.credentials?.card ?? "") : raw,
-                        proposedMachine: target, userInitiated: true)
-                } catch { self.show(error.localizedDescription) }
+                self.authorize(raw.isEmpty ? (self.credentials?.card ?? "") : raw, userInitiated: true)
             }
             controller.dismissManagement = { [weak self] in
                 guard JumoGate.shared.isOpen else { return }
@@ -276,7 +266,6 @@ final class JumoLicenseManager: NSObject {
 
     private func hide() {
         screen?.card.text = nil
-        screen?.pairing.text = nil
         window?.isHidden = true
         window = nil
         screen = nil

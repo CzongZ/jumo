@@ -42,7 +42,7 @@ static id BaimingCrest(id self, SEL cmd) {
     button.frame = CGRectMake(0, 0, 32, 32);
     [button setTitle:@"授权" forState:UIControlStateNormal];
     button.accessibilityLabel = @"百鸣科技授权管理";
-    button.accessibilityHint = @"查看、复制配对码和 App 实例编号";
+    button.accessibilityHint = @"查看本 App 的设备码或重新验证卡密";
     [button addAction:[UIAction actionWithHandler:^(__kindof UIAction *action) {
         JumoPresentAuthorization();
     }] forControlEvents:UIControlEventTouchUpInside];

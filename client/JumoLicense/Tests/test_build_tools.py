@@ -56,9 +56,8 @@ def test_rejects_invalid_trust(tmp_path, text):
         build.validate_key(path)
 
 
-@pytest.mark.parametrize('name', ['java-test-vectors.json', 'pairing-test-vectors.json'])
-def test_rejects_documentation_test_key(tmp_path, name):
-    fixture = json.loads((CLIENT / 'Tests' / name).read_text('utf-8'))
+def test_rejects_documentation_test_key(tmp_path):
+    fixture = json.loads((CLIENT / 'Tests' / 'java-test-vectors.json').read_text('utf-8'))
     path = tmp_path / 'test-key.b64'
     path.write_text(fixture['PUBLIC_KEY_B64'], 'ascii')
     with pytest.raises(ValueError, match='test key'):
@@ -104,8 +103,7 @@ def test_native_tests_use_explicit_host_sdk(tmp_path, monkeypatch):
     assert command[0] == compiler
     assert command[command.index('-sdk') + 1] == sdk
     assert commands[-1] == [str(tmp_path / 'build' / 'protocol-tests'),
-                            str(CLIENT / 'Tests' / 'java-test-vectors.json'),
-                            str(CLIENT / 'Tests' / 'pairing-test-vectors.json')]
+                            str(CLIENT / 'Tests' / 'java-test-vectors.json')]
     assert len(queries) == 2
 
 
@@ -142,29 +140,6 @@ def test_java_vectors_verify_independently():
             license['serverTime'], license['graceUntil'], license['data']['expiresAt'], ok)))
         assert canonical == vector['canonical']
         public.verify(base64.b64decode(license['sig']), canonical.encode('utf-8'))
-
-
-def test_pairing_vectors_sign_installation_bundle_and_decision():
-    from cryptography.exceptions import InvalidSignature
-    import hashlib
-
-    fixture = json.loads((CLIENT / 'Tests' / 'pairing-test-vectors.json').read_text('utf-8'))
-    public = serialization.load_der_public_key(base64.b64decode(fixture['PUBLIC_KEY_B64']))
-    for vector in fixture['vectors']:
-        license = vector['response']['data']
-        canonical = '|'.join(map(str, ('v2', 'JUMO', vector['key'], vector['machineCode'],
-            vector['installationID'], vector['bundleID'], license['serverTime'], license['graceUntil'],
-            license['data']['expiresAt'], int(license['status'] and license['canUse']), license['reasonCode'])))
-        assert canonical == vector['canonical']
-        signature = base64.b64decode(license['sig'], validate=True)
-        public.verify(signature, canonical.encode())
-        for part in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10):
-            fields = canonical.split('|')
-            fields[part] += 'X'
-            with pytest.raises(InvalidSignature):
-                public.verify(signature, '|'.join(fields).encode())
-    body = 'BM1.' + base64.urlsafe_b64encode(fixture['vectors'][0]['machineCode'].encode()).decode().rstrip('=')
-    assert fixture['pairingCode'] == body + '.' + hashlib.sha256(body.encode()).digest()[:8].hex().upper()
 
 
 def test_branding_updates_cfstring_lengths_without_touching_inputs(tmp_path):

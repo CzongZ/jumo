@@ -1,17 +1,18 @@
-# 百鸣科技配对版源码包
+# 百鸣科技独立卡密版源码包
 
-这是待编译、待真机验收的源码，不是可直接注入的成品。当前版本为 baiming-pairing-v3；服务端协议为 v2。
+当前源码版本 baiming-independent-v4，授权协议 v1。每个 App 单独输入并保存自己的 JUMO 卡密。保留原“巨魔注入”程序、百鸣科技界面及正常前台使用时 55–65 分钟续验。
 
-1. 先将 client/JumoLicense/BACKEND-PROMPT.zh-CN.md 整段交给服务端编程助手，完成实例登记、数量上限、ERP 管理及 v2 签名接口。此源码包没有修改服务端，未部署前新版插件会拒绝旧 v1 响应。
+本包是待编译源码，不是可直接注入的成品。本轮没有 macOS / iOS 原生编译、没有真机运行，不能把此次协议回退当作已修复此前启动闪退。
+
+1. 不执行之前的配对版服务端提示词。客户端恢复原有 POST /ai/ai_key/card_vip/detail，仅传 key、machine_code、software_id=JUMO，验签版本 v1。若服务端仍是原有 v1 实现，无需为本版做改造；如果已经执行过强制 v2 的服务端改造，需先恢复 JUMO 的 v1 支持。
 2. 将本包全部内容上传 GitHub，包含隐藏的 .github 目录。运行 Actions → Build JUMO iOS → Run workflow。
-3. 成功后下载 JUMO-device-test。只构建四个插件，不再自动构建新注入器。
-4. 使用原来的“巨魔注入”向每个目标 App 注入同一个成品包内的 JumoLicense.dylib、Cam.dylib、MM.dylib、Sky.dylib，四个库放在相同的加载目录。保留原注入器，不需要额外的共享钥匙串权限；原注入兼容范围仍需真机确认。
-5. 第一个 App 输入新系统 JUMO 卡，配对码留空。成功后复制配对码；其他 App 在首次激活时粘贴配对码并输入同一张卡。
-6. 点击插件面板原徽标位置的“授权”按钮，可随时重新打开授权管理，查看/复制配对码和本 App 实例编号。
+3. 成功后下载 JUMO-device-test，内含四个编译和签名后的库。使用原注入器撤销旧配对版整组插件后，再注入新成品包内的 JumoLicense.dylib、Cam.dylib、MM.dylib、Sky.dylib，四个库应来自同一次构建并位于相同加载目录。
+4. 每个 App 输入一张独立的 JUMO 卡密，联网成功后在此 App 内记住，后续自动续验。不能把已经绑定另一个 App 设备码的同一卡密直接用于新 App。
+5. 点击插件面板“授权”可重新验证卡密或查看此 App 的设备码。没有配对码、跨 App 自动共享或激活名额管理。
 
-激活数量按不同安装实例由服务端限制，默认值在提示词中建议为 10，可在 ERP 调整；客户端不写死上限。普通续验不新增名额。配对码可以转移，不能严格证明实例都在同一手机。
+“之前的卡密”指本项目此前已接入的 JUMO 系统，不是原作者的旧授权系统。现有生产公钥不变，不回传对话中的任何旧卡。
 
-每个 App 独立保存授权，正常前台使用时随机 55–65 分钟续验，后台不主动轮询；不再声称跨 App 自动共享卡密、缓存或请求去重。异常断网只允许独立验签且仍在有效期的缓存，最多 2 小时；停用和解绑不是即时推送。
+源码包：output/jumo-integration/BAIMING-independent-source.zip。output/jumo-integration/BAIMING-integration-source.zip 和 JUMO-integration-source.zip 是同内容的兼容名称。不要将源码包中的原始三个输入库或 prepared 中间文件直接注入。
 
-详细说明见 client/JumoLicense/README.zh-CN.md。Windows 本地已验证构建准备、签名向量和 ARM64 补丁路径；Swift 原生执行、iOS 编译及真机功能需在 macOS Actions 和设备上验收。
+详细规则、迁移边界及验证步骤见 client/JumoLicense/README.zh-CN.md。
 
